@@ -787,8 +787,8 @@ namespace bgfx
 		{
 			if (0 < m_num)
 			{
-				uint32_t* tempKeys = (uint32_t*)alloca(sizeof(m_keys) );
-				uint32_t* tempValues = (uint32_t*)alloca(sizeof(m_values) );
+				uint32_t* tempKeys = (uint32_t*)BX_STACK_ALLOC(sizeof(m_keys) );
+				uint32_t* tempValues = (uint32_t*)BX_STACK_ALLOC(sizeof(m_values) );
 				bx::radixSort(m_keys, tempKeys, m_values, tempValues, m_num);
 				return true;
 			}
@@ -1089,9 +1089,9 @@ namespace bgfx
 	constexpr uint8_t  kSortKeyComputeProgramShift = kSortKeyComputeSeqShift - BGFX_CONFIG_SORT_KEY_NUM_BITS_PROGRAM;
 	constexpr uint64_t kSortKeyComputeProgramMask  = uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1)<<kSortKeyComputeProgramShift;
 
-	BX_STATIC_ASSERT(BGFX_CONFIG_MAX_VIEWS <= (1<<kSortKeyViewNumBits) );
-	BX_STATIC_ASSERT( (BGFX_CONFIG_MAX_PROGRAMS & (BGFX_CONFIG_MAX_PROGRAMS-1) ) == 0); // Must be power of 2.
-	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
+	static_assert(BGFX_CONFIG_MAX_VIEWS <= (1<<kSortKeyViewNumBits) );
+	static_assert( (BGFX_CONFIG_MAX_PROGRAMS & (BGFX_CONFIG_MAX_PROGRAMS-1) ) == 0); // Must be power of 2.
+	static_assert( (0 // Render key mask shouldn't overlap.
 		| kSortKeyViewMask
 		| kSortKeyDrawBit
 		| kSortKeyDrawTypeMask
@@ -1106,7 +1106,7 @@ namespace bgfx
 		^ kSortKeyDraw0ProgramMask
 		^ kSortKeyDraw0DepthMask
 		) );
-	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
+	static_assert( (0 // Render key mask shouldn't overlap.
 		| kSortKeyViewMask
 		| kSortKeyDrawBit
 		| kSortKeyDrawTypeMask
@@ -1121,7 +1121,7 @@ namespace bgfx
 		^ kSortKeyDraw1BlendMask
 		^ kSortKeyDraw1ProgramMask
 		) );
-	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
+	static_assert( (0 // Render key mask shouldn't overlap.
 		| kSortKeyViewMask
 		| kSortKeyDrawBit
 		| kSortKeyDrawTypeMask
@@ -1136,7 +1136,7 @@ namespace bgfx
 		^ kSortKeyDraw2BlendMask
 		^ kSortKeyDraw2ProgramMask
 		) );
-	BX_STATIC_ASSERT( (0 // Compute key mask shouldn't overlap.
+	static_assert( (0 // Compute key mask shouldn't overlap.
 		| kSortKeyViewMask
 		| kSortKeyDrawBit
 		| kSortKeyComputeSeqShift
@@ -1700,6 +1700,9 @@ namespace bgfx
 					bind.m_idx = kInvalidHandle;
 					bind.m_type = 0;
 					bind.m_samplerFlags = 0;
+					bind.m_format = 0;
+					bind.m_access = 0;
+					bind.m_mip = 0;
 				}
 			}
 		};
@@ -2168,6 +2171,8 @@ namespace bgfx
 			bx::memSet(m_occlusion, 0xff, sizeof(m_occlusion) );
 
 			m_perfStats.viewStats = m_viewStats;
+
+			bx::memSet(&m_renderItemBind[0], 0, sizeof(m_renderItemBind));
 		}
 
 		~Frame()
@@ -2445,6 +2450,13 @@ namespace bgfx
 	{
 		EncoderImpl()
 		{
+			// Although it will be cleared by the discard(), the fact that the
+			// struct is padded to have a size equal to the cache line size,
+			// will leaves bytes uninitialized. This will influence the hashing
+			// as it reads those bytes too. To make this deterministic, we will
+			// clear all bytes (inclusively the padding) before we start.
+			bx::memSet(&m_bind, 0, sizeof(m_bind));
+
 			discard(BGFX_DISCARD_ALL);
 		}
 
@@ -2725,6 +2737,9 @@ namespace bgfx
 				? BGFX_SAMPLER_INTERNAL_DEFAULT
 				: _flags
 				;
+			bind.m_format = 0;
+			bind.m_access = 0;
+			bind.m_mip    = 0;
 
 			if (isValid(_sampler) )
 			{
@@ -4178,7 +4193,7 @@ namespace bgfx
 			sr.m_num      = 0;
 			sr.m_uniforms = NULL;
 
-			UniformHandle* uniforms = (UniformHandle*)alloca(count*sizeof(UniformHandle) );
+			UniformHandle* uniforms = (UniformHandle*)BX_STACK_ALLOC(count*sizeof(UniformHandle) );
 
 			for (uint32_t ii = 0; ii < count; ++ii)
 			{

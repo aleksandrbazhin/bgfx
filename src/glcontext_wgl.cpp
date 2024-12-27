@@ -272,7 +272,7 @@ namespace bgfx { namespace gl
 				}
 				BGFX_FATAL(NULL != m_context, Fatal::UnableToInitialize, "Failed to create context 0x%08x.", GetLastError() );
 
-				BX_STATIC_ASSERT(sizeof(contextAttrs) == sizeof(m_contextAttrs) );
+				static_assert(sizeof(contextAttrs) == sizeof(m_contextAttrs) );
 				bx::memCopy(m_contextAttrs, contextAttrs, sizeof(contextAttrs) );
 			}
 
@@ -335,8 +335,9 @@ namespace bgfx { namespace gl
 		return BGFX_CAPS_SWAP_CHAIN;
 	}
 
-	SwapChainGL* GlContext::createSwapChain(void* _nwh)
+	SwapChainGL* GlContext::createSwapChain(void* _nwh, int _width, int _height)
 	{
+		BX_UNUSED(_width, _height);
 		SwapChainGL* swapChain = BX_NEW(g_allocator, SwapChainGL)(_nwh);
 
 		int result = SetPixelFormat(swapChain->m_hdc, m_pixelFormat, &m_pfd);
